@@ -1,5 +1,5 @@
 {
-	"name": "ouropencode/dachi-permissions",
+	"name": "maxmckenzie/dachi-permissions",
 	"version": "3.1.8",
 	"autoload": {
 		"psr-4": {
