@@ -7,6 +7,6 @@
 		}
 	},
 	"require": {
-        "ouropencode/dachi": "^3"
+        "maxmckenzie/dachi": "^3"
 	}
 }
