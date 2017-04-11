@@ -15,121 +15,124 @@ use Dachi\Core\Configuration;
  * @author    LemonDigits.com <devteam@lemondigits.com>
  */
 class Permissions {
-	protected static $active_user_permissions = null;
+  protected static $active_user_permissions = null;
 
-	public static function load() {
-		if(is_array(self::$active_user_permissions))
-			return false;
+  public static function load() {
+    if(is_array(self::$active_user_permissions))
+      return false;
 
-		self::$active_user_permissions = array();
+    self::$active_user_permissions = array();
 
-		if(Request::getSession("dachi_authenticated", false) == false)
-			return;
+    if(Request::getSession("dachi_authenticated", false) == false)
+      return;
 
-		$active_user = Database::getRepository('Authentication:ModelUser')->findOneBy(array(
-			"id" => Request::getSession("dachi_authenticated", false)
-		));
-		if(!$active_user) return false;
+    $active_user = Database::getRepository('Authentication:ModelUser')->findOneBy(array(
+      "id" => Request::getSession("dachi_authenticated", false)
+    ));
+    if(!$active_user) return false;
 
-		$role = $active_user->getRole();
-		if(!$role) return false;
-		
-		foreach($role->getPermissions() as $perm)
-			self::$active_user_permissions[$perm->getBit()] = true;
+    $role = $active_user->getRole();
+    if(!$role) return false;
 
-		$output_user = array(
-			"id"         => $active_user->getId(),
-			"first_name" => $active_user->getFirstName(),
-			"last_name"  => $active_user->getLastName(),
-			"email"      => $active_user->getEmail(),
-			"role"       => array(
-				"id"   => $role->getId(),
-				"name" => $role->getName()
-			)
-		);
+    foreach($role->getPermissions() as $perm)
+      self::$active_user_permissions[$perm->getBit()] = true;
 
-		if(Configuration::get("authentication.identifier", "email") == "username")
-			$output_user["username"] = $active_user->getUsername();
+    $staff = Database::getRepository("Staff:ModelStaffMember")->getStaffFromUser($active_user);
 
-		Request::setData("active_user", $output_user);
-		Request::setData("active_user_id", $active_user->getId());
-		Request::setData("dachi_permissions", self::$active_user_permissions);
+    $output_user = array(
+      "id"         => $active_user->getId(),
+      "first_name" => $active_user->getFirstName(),
+      "last_name"  => $active_user->getLastName(),
+      "email"      => $active_user->getEmail(),
+      "image"      => $staff->getImage(),
+      "role"       => array(
+        "id"   => $role->getId(),
+        "name" => $role->getName()
+      )
+    );
 
-		return true;
-	}
+    if(Configuration::get("authentication.identifier", "email") == "username")
+      $output_user["username"] = $active_user->getUsername();
 
-	public static function getActiveUser() {
-		if(Request::getSession("dachi_authenticated", false) == false)
-			return false;
-		
-		return Database::getRepository('Authentication:ModelUser')->findOneBy(array(
-			"id" => Request::getSession("dachi_authenticated", false)
-		));
-	}
+    Request::setData("active_user", $output_user);
+    Request::setData("active_user_id", $active_user->getId());
+    Request::setData("dachi_permissions", self::$active_user_permissions);
 
-	public static function has($bit) {
-		if(!is_array(self::$active_user_permissions))
-			self::load();
+    return true;
+  }
 
-		if(isset(self::$active_user_permissions[$bit]) && self::$active_user_permissions[$bit] === true)
-			return true;
+  public static function getActiveUser() {
+    if(Request::getSession("dachi_authenticated", false) == false)
+      return false;
 
-		return false;
-	}
+    return Database::getRepository('Authentication:ModelUser')->findOneBy(array(
+      "id" => Request::getSession("dachi_authenticated", false)
+    ));
+  }
 
-	public static function hasUser($bit, $user) {
-		$permissions = array();
-		foreach($user->getRole()->getPermissions() as $perm)
-			$permissions[$perm->getBit()] = true;
+  public static function has($bit) {
+    if(!is_array(self::$active_user_permissions))
+      self::load();
 
-		return isset($permissions[$bit]) && $permissions[$bit] == true;
-	}
+    if(isset(self::$active_user_permissions[$bit]) && self::$active_user_permissions[$bit] === true)
+      return true;
 
-	public static function enforce($bit) {
-		if(!is_array(self::$active_user_permissions))
-			self::load();
+    return false;
+  }
 
-		if(isset(self::$active_user_permissions[$bit]) && self::$active_user_permissions[$bit] === true)
-			return true;
-		
-		return self::fail();
-	}
+  public static function hasUser($bit, $user) {
+    $permissions = array();
+    foreach($user->getRole()->getPermissions() as $perm)
+      $permissions[$perm->getBit()] = true;
 
-	public static function enforceUser($bit, $user) {
-		$permissions = array();
-		foreach($user->getRole()->getPermissions() as $perm)
-			$permissions[$perm->getBit()] = true;
+    return isset($permissions[$bit]) && $permissions[$bit] == true;
+  }
 
-		if(isset($permissions[$bit]) && $permissions[$bit] == true)
-			return true;
+  public static function enforce($bit) {
+    if(!is_array(self::$active_user_permissions))
+      self::load();
 
-		return self::fail();
-	}
+    if(isset(self::$active_user_permissions[$bit]) && self::$active_user_permissions[$bit] === true)
+      return true;
 
-	public static function fail() {
-		Request::setResponseCode("error", "Insufficent permission");
-		Template::redirect("/auth");
-		return false;
-	}
+    return self::fail();
+  }
 
-	public static function register($bit, $name = null, $description = null) {
-		$permission = Database::getRepository('Authentication:ModelPermission')->findOneBy(array(
-			"bit" => $bit
-		));
+  public static function enforceUser($bit, $user) {
+    $permissions = array();
+    foreach($user->getRole()->getPermissions() as $perm)
+      $permissions[$perm->getBit()] = true;
 
-		$newPermission = false;
-		if(!$permission) {
-			$newPermission = true;
-			$permission = new Authentication\ModelPermission();
-		}
+    if(isset($permissions[$bit]) && $permissions[$bit] == true)
+      return true;
 
-		$permission->setBit($bit);
-		$permission->setName($name == null ? $bit : $name);
-		$permission->setDescription($description == null ? $bit : $description);
+    return self::fail();
+  }
 
-		if($newPermission == true)
-			Database::persist($permission);
-		
-		Database::flush();
-	}
+  public static function fail() {
+    Request::setResponseCode("error", "Insufficent permission");
+    Template::redirect("/auth");
+    return false;
+  }
+
+  public static function register($bit, $name = null, $description = null) {
+    $permission = Database::getRepository('Authentication:ModelPermission')->findOneBy(array(
+      "bit" => $bit
+    ));
+
+    $newPermission = false;
+    if(!$permission) {
+      $newPermission = true;
+      $permission = new Authentication\ModelPermission();
+    }
+
+    $permission->setBit($bit);
+    $permission->setName($name == null ? $bit : $name);
+    $permission->setDescription($description == null ? $bit : $description);
+
+    if($newPermission == true)
+      Database::persist($permission);
+
+    Database::flush();
+  }
 }
