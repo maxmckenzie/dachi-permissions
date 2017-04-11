@@ -8,7 +8,9 @@ use Doctrine\Common\Collections\ArrayCollection;
  * @Entity(repositoryClass="RepositoryUser")
  * @InheritanceType("SINGLE_TABLE")
  * @DiscriminatorColumn(name="type", type="string")
- * @Table(name="authentication_users")
+ * @Table(name="authentication_users", indexes={
+ *   @Index(name="idx_name_search", columns={"first_name","last_name"})
+ * })
  */
 class ModelUser extends Model {
   /**
